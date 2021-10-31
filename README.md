@@ -1,13 +1,4 @@
-# Discord Bot for OpenSea
-
-### Forked from [https://github.com/0xEssential/opensea-discord-bot](https://github.com/0xEssential/opensea-discord-bot) and converted to pure Javascript
-
-[comment]: <> (Need help? [Join us on Discord]&#40;https://discord.gg/BheNSUfcvm&#41;!)
-
-
-This project includes a script that can be used to routinely hit the OpenSea API, check for recent sales on a collection, and post embeds into a Discord channel with information about the sale.
-
-Please don't abuse the OpenSea API by running this more frequently than once per hour. Ideally you should request an API key from OpenSea, and in a perfect world you would instead use Webhooks from OpenSea.
+# Discord Auto Publisher
 
 ## Prerequisites
 
@@ -52,8 +43,6 @@ Then copy the `.env.example` file to `.env` and replace the example values with 
 $ npm run start
 ```
 
-Notice that Open Sea Flyer requires at least Node 14, because `discord.js` requires it.
-
 If you put it on a remote server, use a process manager. We suggests [pm2](https://pm2.keymetrics.io/)
 
 After installing it, you can run to launch the app with pm2 
@@ -63,9 +52,8 @@ After installing it, you can run to launch the app with pm2
 
 # Copyright
 
-Original author: [Sam Bauch](https://github.com/sbauch)
 
-Contributors to the pure JS versions: [Francesco Sullo](https://francesco.sullo.co)
+2021 [Francesco Sullo](https://francesco.sullo.co)
 
 # License
 
