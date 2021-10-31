@@ -1,4 +1,7 @@
 require('dotenv').config()
+const requireOrMock = require('require-or-mock')
+const path = require('path')
+const fs = require('fs-extra')
 const chalk = require('chalk')
 const Discord = require('discord.js')
 const {Client, Intents} = Discord
@@ -7,13 +10,16 @@ const discordBot = new Client({intents: [Intents.FLAGS.GUILDS]})
 const {ethers} = require("ethers")
 const superagent = require('superagent')
 const { SHA3 } = require('sha3')
+const db = require('./lib/Db')
 
-const OPENSEA_SHARED_STOREFRONT_ADDRESS = '0x495f947276749Ce646f68AC8c248420045cb7b5e'
+const metadata = requireOrMock('db/allMetadataV2.json', [])
+if (metadata.length === 0) {
+  console.info('Metadata not found')
+  process.exit(1)
+}
 
 let failed = []
 ;[
-  'CONTRACT_ADDRESS',
-  'COLLECTION_SLUG',
   'DISCORD_BOT_TOKEN',
   'DISCORD_CHANNEL_ID'].map(f => {
   if (!process.env[f]) {
@@ -36,86 +42,42 @@ discordBot.on('ready', async () => {
 })
 
 const history = {}
+let inline = false
 
-const buildMessage = sale => {
+const buildMessage = (imagePath, metadata) => {
 
-  const {asset} = (sale || {})
-  if (asset) {
+    let {name, attributes} = metadata
 
-    let {token_id, name, permalink, collection, image_original_url} = asset
 
-    if (!name) {
-      name = `EverDragons #${token_id}`
+    let title = name
+    let fields = []
+    for (let attribute of attributes) {
+      let trait = attribute.trait_type
+      let value = attribute.value.toString()
+      if (/^[A-Z]{1}\w{1,2}[A-Z]{0,1} /.test(value)) {
+        value = value.replace(/^[A-Z]{1}\w{1,2}[A-Z]{0,1} /, '')
+      }
+      // console.log(attribute)
+      fields.push({
+        name: trait,
+        value
+      })
+
+      inline = !inline
     }
-    let buyer = sale.winner_account ? sale.winner_account.address : ''
-    let seller = sale.seller ? sale.seller.address : ''
 
-    let title
-    let fields
+    const file = new Discord.MessageAttachment(imagePath)
 
-    function getPrice(price) {
-      return `${ethers.utils.formatEther(price || '0')}${ethers.constants.EtherSymbol}`
-    }
-    console.log('Event_type', sale.event_type)
-    switch (sale.event_type) {
-      case 'successful':
-        title = name + ' sold!'
-        fields = [
-          {name: 'Seller', value: seller},
-          {name: 'Buyer', value: buyer},
-          {name: 'Price', value: getPrice(sale.total_price)}
-        ]
-        break
-      case 'created':
-        title = name + ' is on auction!'
-        fields = [
-          {name: 'Seller', value: seller},
-          {name: 'Price', value: getPrice(sale.starting_price)}
-        ]
-        break
-      case 'bid_entered':
-        title = 'New bid for ' + name
-        fields = [
-          {name: 'Buyer', value: buyer},
-          {name: 'Price', value: getPrice(sale.bid_amount)}
-        ]
-        break
-      case 'offer_entered':
-        title = 'New offer for ' + name
-        fields = [
-          {name: 'From', value: sale.from_account.address},
-          {name: 'Price', value: getPrice(sale.bid_amount)}
-        ]
-        break
-      case 'transfer':
-        title = name + ' transferred'
-        fields = [
-          {name: 'From', value: sale.from_account.address},
-          {name: 'To', value: sale.to_account.address}
-        ]
-        break
-      default:
-        // not supported event types
-        console.log('Event_type', sale.event_type)
-        return false
-    }
-    const hash = new SHA3(512)
-    hash.update(JSON.stringify({data: [title, fields]}))
-    const key = hash.digest('hex')
-    if (history[key]) return false
-    history[key] = true
-
-    return new Discord.MessageEmbed()
-        .setColor('#fff8bb')
+    return [new Discord.MessageEmbed()
+        .setColor('#FFFFFF')
         .setTitle(title)
-        .setURL(permalink || '')
-        // .setAuthor('Open Sea Flyer', 'https://files.readme.io/566c72b-opensea-logomark-full-colored.png', 'https://github.com/sbauch/opensea-discord-bot')
-        // .setThumbnail(collection.image_url)
+        // .setURL(permalink || '')
+        .setThumbnail('https://everdragons2.com/images/everDragonsLogo.png')
         .addFields(...fields)
-        .setImage(image_original_url.replace(/svg$/, 'png'))
-        .setTimestamp(Date.parse(`${sale.created_date}Z`))
-        .setFooter('OpenSea', 'https://files.readme.io/566c72b-opensea-logomark-full-colored.png')
-  }
+        .setImage('attachment://'+name+'.png')
+        .setTimestamp(new Date)
+        // .setFooter('OpenSea', 'https://files.readme.io/566c72b-opensea-logomark-full-colored.png')
+      , file]
 }
 
 function has(obj, ...props) {
@@ -138,41 +100,38 @@ async function sleep(millis) {
 
 async function main() {
   const seconds = process.env.SECONDS ? parseInt(process.env.SECONDS) : 3600;
-  const afterLastCheck = (Math.round(new Date().getTime() / 1000) - (seconds))
-
-  const params = new URLSearchParams({
-    offset: '0',
-    // event_type: 'offer_entered',
-    only_opensea: 'false',
-    limit: '10',
-    occurred_after: afterLastCheck.toString(),
-    collection_slug: process.env.COLLECTION_SLUG
-  })
-
-  if (process.env.CONTRACT_ADDRESS !== OPENSEA_SHARED_STOREFRONT_ADDRESS) {
-    params.append('asset_contract_address', process.env.CONTRACT_ADDRESS)
-  }
-
-  try {
-    let openSeaResponse = (await superagent.get("https://api.opensea.io/api/v1/events?" + params)
-        .set({Accept: 'application/json'})).body
-
-    if (has(openSeaResponse, 'asset_events')) {
-
-      for (let sale of openSeaResponse.asset_events.reverse()) {
-        const message = buildMessage(sale)
-        if (message) {
-          // console.log(message)
-          await channel.send({embeds: [message]})
-          await sleep(3000)
-        }
-      }
+  let ok
+  let published = db.get('published') || []
+  let imagePath
+  let i = 0
+  while (typeof ok === 'undefined' && i < 1000) {
+    let index = Math.round(metadata.length * Math.random())
+    imagePath = path.join(__dirname, 'db/images', metadata[index].name + '.png')
+    console.log(imagePath)
+    if (await fs.pathExists(imagePath) && !~published.indexOf(index)) {
+      ok = index
+      published.push(ok)
     }
-  } catch (e) {
-    console.error(e)
+    i++
   }
+  if (i < 1000) {
+    try {
+      const [message, file] = buildMessage(imagePath, metadata[ok])
+      if (message) {
+        console.log(message)
+        await channel.send({embeds: [message], files: [file]})
+        await sleep(3000)
+      }
+    } catch (e) {
+      console.error(e)
+    }
 
-  await sleep(parseInt(process.env.SECONDS) * 1000)
+  }
+  // else no more available PNGs
+
+  await sleep(seconds * 1000)
   // await sleep(10 * 1000)
   main()
 }
+
+
