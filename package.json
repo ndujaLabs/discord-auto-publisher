@@ -1,0 +1,29 @@
+{
+  "name": "discord-auto-publisher",
+  "description": "A Discord bot to publish following a schedule",
+  "version": "1.0.0",
+  "license": "MIT",
+  "scripts": {
+    "start": "node ."
+  },
+  "authors": [
+    "Sam Bauch (https://github.com/sbauch)",
+    "Francesco Sullo <francesco@sullo.co> (https://francesco.sullo.co)"
+  ],
+  "contributors": [],
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "discord.js": "^13.1.0",
+    "dotenv": "^8.2.0",
+    "ethers": "^5.1.0",
+    "g": "^2.0.1",
+    "opensea-js": "^1.2.0",
+    "pm2": "^5.1.1",
+    "sha3": "^2.1.4",
+    "superagent": "^6.1.0",
+    "ttab": "^0.7.1"
+  }
+}
