@@ -230,7 +230,7 @@ async function main() {
     try {
       const [message, file] = buildMessage(imagePath, metadata[ok])
       if (message) {
-        console.log(message, file)
+        // console.log(message, file)
         // await channel.send(dName.split('.')[0], {files: [{
         //   attachment: file,
         //   name: dName
